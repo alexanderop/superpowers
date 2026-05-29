@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# SessionStart hook — inject the project's docs/solutions/ knowledge-store index
+# so the agent always knows what documented solutions exist (read side of the
+# compound loop). Ported from brainmaxxing's brain-injection technique, pointed
+# at the compound store instead of a separate brain/ vault.
+
+set -euo pipefail
+
+# Resolve the active project directory (set by Claude Code; fall back to CWD).
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
+INDEX="${PROJECT_DIR}/docs/solutions/index.md"
+
+# Nothing to inject if this project has no knowledge store yet. Emit no output
+# (valid: hooks may produce empty output) and exit cleanly.
+[ -f "$INDEX" ] || exit 0
+
+index_content=$(cat "$INDEX" 2>/dev/null || true)
+[ -n "$index_content" ] || exit 0
+
+# Same JSON-escaping helper used by the session-start hook.
+escape_for_json() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
+}
+
+header="This project has a documented-solutions knowledge store at docs/solutions/. Read the relevant file BEFORE implementing or debugging in a documented area, and run the compound skill after solving something new.\n\n"
+session_context=$(escape_for_json "${header}$(printf '%s' "$index_content")")
+
+# Match the platform-detection emitted by hooks/session-start.
+if [ -n "${CURSOR_PLUGIN_ROOT:-}" ]; then
+  printf '{\n  "additional_context": "%s"\n}\n' "$session_context"
+elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -z "${COPILOT_CLI:-}" ]; then
+  printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' "$session_context"
+else
+  printf '{\n  "additionalContext": "%s"\n}\n' "$session_context"
+fi
+
+exit 0

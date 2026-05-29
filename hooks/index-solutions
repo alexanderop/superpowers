@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# PostToolUse hook — keep docs/solutions/index.md in sync with the files on disk.
+# Pure bash, no LLM: deterministic and cheap. Ported from brainmaxxing's
+# auto-index-brain.sh, adapted to the compound store and to extract doc titles
+# from YAML frontmatter so the injected index is useful to read against.
+
+# Consume hook stdin (PostToolUse passes a JSON event we don't need).
+cat > /dev/null
+
+set -euo pipefail
+
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
+SOLUTIONS_DIR="${PROJECT_DIR}/docs/solutions"
+INDEX="${SOLUTIONS_DIR}/index.md"
+
+# Only act when a knowledge store exists in this project.
+[ -d "$SOLUTIONS_DIR" ] || exit 0
+
+# All solution docs except the index and the store README — relative paths without .md.
+disk=$(find "$SOLUTIONS_DIR" -name "*.md" ! -name "index.md" ! -name "README.md" -type f 2>/dev/null \
+    | sed "s|^${SOLUTIONS_DIR}/||; s|\.md$||" \
+    | sort || true)
+
+# No docs yet → no index to maintain. Remove a stale empty index if present.
+if [ -z "$disk" ]; then
+    exit 0
+fi
+
+# Bare slugs currently linked in the index (for fast no-op detection).
+indexed=""
+[ -f "$INDEX" ] && indexed=$(sed -n 's/.*(\([^)]*\)\.md).*/\1/p' "$INDEX" | sort || true)
+
+# Exit fast if the set of files is unchanged.
+[ "$disk" = "$indexed" ] && exit 0
+
+# --- Drift detected: rebuild the index ---
+
+# Pull the `title:` from a doc's frontmatter; fall back to the slug.
+doc_title() {
+    local file="$1" t
+    t=$(sed -n 's/^title:[[:space:]]*//p' "$file" 2>/dev/null | head -1)
+    t="${t%\"}"; t="${t#\"}"      # strip surrounding double quotes
+    t="${t%\'}"; t="${t#\'}"      # strip surrounding single quotes
+    [ -n "$t" ] && printf '%s' "$t" || basename "$file" .md
+}
+
+emit_files() {
+    while IFS= read -r rel; do
+        [ -z "$rel" ] && continue
+        printf -- '- [%s](%s.md)\n' "$(doc_title "${SOLUTIONS_DIR}/${rel}.md")" "$rel"
+    done
+}
+
+# Top-level category directories present on disk.
+dirs=$(echo "$disk" | grep '/' | sed 's|/.*||' | sort -u || true)
+
+{
+    echo "# Documented Solutions"
+    echo ""
+    echo "Knowledge store of past problems and learnings. Read the relevant file before working in its area."
+    for section in $dirs; do
+        files=$(echo "$disk" | grep "^${section}\(/\|$\)" || true)
+        [ -z "$files" ] && continue
+        # Portable title-case (awk toupper works on both GNU and BSD; sed's \U does not).
+        header="$(echo "$section" | sed 's/-/ /g' \
+            | awk '{for(i=1;i<=NF;i++)$i=toupper(substr($i,1,1)) substr($i,2)}1')"
+        printf '\n## %s\n' "$header"
+        echo "$files" | emit_files
+    done
+
+    # Docs sitting directly under docs/solutions/ with no category dir.
+    standalone=$(echo "$disk" | grep -v '/' || true)
+    if [ -n "$standalone" ]; then
+        printf '\n## Other\n'
+        echo "$standalone" | emit_files
+    fi
+    echo ""
+} > "$INDEX"
+
+exit 0
