@@ -151,6 +151,54 @@ already use it in another harness.
   copilot plugin install superpowers@superpowers-marketplace
   ```
 
+## Fork Extensions: Compound Engineering
+
+> This is a fork of [obra/superpowers](https://github.com/obra/superpowers) that adds an
+> autonomous pipeline and a compounding knowledge loop on top of the core skills. Everything
+> upstream still works exactly as documented above — these are additive.
+
+Three extra skills and two hooks turn each unit of work into durable, reusable knowledge:
+
+- **`/lfg [feature]`** — fully hands-off autopilot. Recalls prior learnings → plans → implements
+  with TDD → reviews and autofixes → verifies → opens a PR → watches CI and fixes failures →
+  documents the learning → `DONE`. Self-verified gates, no prompts. It orchestrates the core
+  superpowers skills and deliberately skips interactive brainstorming (that gate fights autopilot).
+- **`/compound [context]`** — documents a solved problem into a project-local `docs/solutions/`
+  store (bug + knowledge tracks, YAML frontmatter, dedup). Each fix makes the next one cheaper.
+- **`/compound-setup`** — run once per repo to scaffold `docs/solutions/` so the store works from
+  day one. Idempotent.
+
+Two hooks (ported from [brainmaxxing](https://github.com/poteto/brainmaxxing), made portable for
+macOS bash 3.2 / BSD) close the loop automatically:
+
+- **SessionStart** injects the `docs/solutions/` index into every session, so agents always know
+  what's documented (the read side).
+- **PostToolUse** rebuilds that index deterministically (pure bash, no LLM) whenever a solution
+  file changes.
+
+**Per-repo flow:** `/compound-setup` once → then `/lfg` (or `/compound`) forever.
+
+### Installing this fork
+
+This fork ships its own Claude Code marketplace (`superpowers-dev`).
+
+- Register the marketplace from this repo:
+
+  ```bash
+  /plugin marketplace add alexanderop/superpowers
+  ```
+
+- Install the plugin:
+
+  ```bash
+  /plugin install superpowers@superpowers-dev
+  ```
+
+Other harnesses point at the fork repo directly — e.g. Factory Droid
+`droid plugin marketplace add https://github.com/alexanderop/superpowers`, Gemini CLI
+`gemini extensions install https://github.com/alexanderop/superpowers`. If you already have
+upstream Superpowers installed, remove it first so the two don't double-load.
+
 ## The Basic Workflow
 
 1. **brainstorming** - Activates before writing code. Refines rough ideas through questions, explores alternatives, presents design in sections for validation. Saves design document.
@@ -194,6 +242,11 @@ already use it in another harness.
 **Meta**
 - **writing-skills** - Create new skills following best practices (includes testing methodology)
 - **using-superpowers** - Introduction to the skills system
+
+**Compound Engineering (this fork)**
+- **lfg** - Autonomous end-to-end pipeline (plan → TDD → review → ship → CI → document)
+- **compound** - Document a solved problem into the project's `docs/solutions/` knowledge store
+- **compound-setup** - One-time per-repo initializer for the knowledge store
 
 ## Philosophy
 
