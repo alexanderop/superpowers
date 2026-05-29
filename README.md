@@ -180,24 +180,37 @@ macOS bash 3.2 / BSD) close the loop automatically:
 
 ### Installing this fork
 
-This fork ships its own Claude Code marketplace (`superpowers-dev`).
-
-- Register the marketplace from this repo:
-
-  ```bash
-  /plugin marketplace add alexanderop/superpowers
-  ```
-
-- Install the plugin:
-
-  ```bash
-  /plugin install superpowers@superpowers-dev
-  ```
-
-Other harnesses point at the fork repo directly — e.g. Factory Droid
-`droid plugin marketplace add https://github.com/alexanderop/superpowers`, Gemini CLI
-`gemini extensions install https://github.com/alexanderop/superpowers`. If you already have
+This fork ships its own marketplace (`superpowers-dev`) from this repo. If you already have
 upstream Superpowers installed, remove it first so the two don't double-load.
+
+**Claude Code**
+
+```bash
+/plugin marketplace add alexanderop/superpowers
+/plugin install superpowers@superpowers-dev
+```
+
+**Factory Droid**
+
+```bash
+droid plugin marketplace add https://github.com/alexanderop/superpowers
+droid plugin install superpowers@superpowers-dev
+```
+
+**Gemini CLI**
+
+```bash
+gemini extensions install https://github.com/alexanderop/superpowers
+# update later:
+gemini extensions update superpowers
+```
+
+**Cursor / GitHub Copilot CLI / OpenCode** — the fork follows the same install flow as upstream
+(see the harness sections above), but point the marketplace/repo at `alexanderop/superpowers`
+instead of `obra/superpowers`.
+
+After installing, verify the extensions loaded by running `/compound-setup` in a repo — it should
+scaffold `docs/solutions/`.
 
 ## The Basic Workflow
 
